@@ -59,10 +59,11 @@
     } catch {
       return false;
     }
-    }
+  }
 
   // ✅ /search: 保存済みProキーがあれば prompt を出さない
-  // ✅ /users: prompt を出さない（従来通り）
+  // ✅ /users: prompt を出さない
+  // ✅ 正誤判定はサーバ応答で行う
   function ensureTokenForThisPage() {
     // /users は絶対にpromptしない
     if (!isSearch()) {
@@ -74,7 +75,7 @@
       return getStoredToken() || ""; // 保存済みがあれば使う。なければTrial
     }
 
-    // /search: すでにProキーが保存されていればそれを使う（promptしない）
+    // /search: すでに保存済みならそれを使う（promptしない）
     const stored = getStoredToken();
     if (stored) return stored;
 
@@ -86,9 +87,7 @@
       ) || ""
     ).trim();
 
-    // Proキー入力時だけ保存（空は保存しない）
-    if (token) setStoredToken(token);
-
+    // plan=pro確認後に保存する
     return token; // 空ならTrial
   }
 
@@ -162,6 +161,20 @@
           (e?.message || e),
       );
       return;
+    }
+
+    // ✅ 入力が「非空」なのに plan が pro じゃない → キー不一致（Trial起動）
+    //    → ローカルストレージに保存しない + 通知を出す
+    if (isSearch()) {
+      const inputWasProvided = !!(token && token.trim());
+      if (inputWasProvided && payload.plan !== "pro") {
+        alert("ライセンスキーが一致しません（trial版を起動します）");
+      }
+
+      // ✅ plan=pro の時だけ保存する（誤キーで汚さない）
+      if (payload.plan === "pro" && inputWasProvided) {
+        setStoredToken(token);
+      }
     }
 
     try {
