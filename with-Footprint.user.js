@@ -1,10 +1,11 @@
 // ==UserScript==
-// @name         with Footprinter (PC ver)
+// @name         with Footprinter (PC / Android ver)
 // @namespace    https://note.com/footprinter
 // @version      2026-01-18
 // @description  Tampermonkey loader(PC)
 // @match        https://with.is/search*
 // @match        https://with.is/users/*
+// @match        https://with.is/groups/*
 // @run-at       document-start
 // @grant        none
 // @downloadURL  https://github.com/popaipoh-droid/with_extension/raw/refs/heads/main/with-Footprint.user.js
@@ -25,6 +26,7 @@
   const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   const isSearch = () => location.pathname.startsWith("/search");
   const isProfile = () => location.pathname.startsWith("/users/");
+  const isGroups = () => location.pathname.startsWith("/groups/");
 
   function withTimeout(promise, ms) {
     return new Promise((resolve, reject) => {
@@ -106,7 +108,7 @@
   }
 
   // =========================
-  // UI（/searchでのみ）
+  // UI（/search /groupsでのみ）
   //  - Trial時: バッジ + 「🔑 ライセンス入力」ボタン
   //  - Pro時  : バッジのみ（ボタン非表示）
   // =========================
@@ -137,7 +139,7 @@
   }
 
   function ensureLicenseUI() {
-    if (!isSearch()) return;
+    if (!isSearch() && !isGroups()) return;
 
     // 既にUIがあるなら状態更新だけ
     const existing = document.getElementById(UI.WRAP_ID);
@@ -233,7 +235,7 @@
     if (alreadyInjected()) return;
     markInjected();
 
-    // /searchでUI表示（bodyが必要）
+    // /search /groupsでUI表示（bodyが必要）
     onBodyReady(ensureLicenseUI);
 
     // promptには頼らない：保存済みがあればPro、なければTrial
