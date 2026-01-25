@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         with Footprinter (PC / Android ver)
 // @namespace    https://note.com/footprinter
-// @version      2026-01-18
+// @version      2026-01-25
 // @description  Tampermonkey loader(PC)
 // @match        https://with.is/search*
 // @match        https://with.is/users/*
@@ -27,6 +27,69 @@
   const isSearch = () => location.pathname.startsWith("/search");
   const isProfile = () => location.pathname.startsWith("/users/");
   const isGroups = () => location.pathname.startsWith("/groups/");
+
+  // =========================
+  // Androidの「最下部まで下がりきれない」問題の回避（方法①）
+  //  - bodyのpadding-bottomを一瞬だけ増やすことで
+  //    IntersectionObserver等のトリガーを発火させやすくする
+  // =========================
+  const isAndroid = () => /Android/i.test(navigator.userAgent || "");
+
+  const ANDROID_NUDGE = {
+    ENABLED: true,
+    EXTRA_PX: 900,
+    DURATION_MS: 800,
+    NEAR_BOTTOM_PX: 80,
+    THROTTLE_MS: 1200,
+  };
+
+  function nudgeViewport(extraPx = ANDROID_NUDGE.EXTRA_PX, durationMs = ANDROID_NUDGE.DURATION_MS) {
+    const body = document.body;
+    if (!body) return;
+
+    const prevPadding = body.style.paddingBottom;
+
+    body.style.paddingBottom = `${extraPx}px`;
+
+    // 強制再計算（IntersectionObserver 再評価用）
+    window.dispatchEvent(new Event("resize"));
+    window.dispatchEvent(new Event("scroll"));
+
+    setTimeout(() => {
+      body.style.paddingBottom = prevPadding;
+      window.dispatchEvent(new Event("resize"));
+      window.dispatchEvent(new Event("scroll"));
+    }, durationMs);
+  }
+
+  function setupAndroidInfiniteScrollNudge() {
+    if (!ANDROID_NUDGE.ENABLED) return;
+    if (!isAndroid()) return;
+    if (!isSearch()) return;
+
+    let lastNudgeAt = 0;
+
+    window.addEventListener(
+      "scroll",
+      () => {
+        const now = Date.now();
+        if (now - lastNudgeAt < ANDROID_NUDGE.THROTTLE_MS) return;
+
+        const body = document.body;
+        if (!body) return;
+
+        const nearBottom =
+          window.innerHeight + window.scrollY >=
+          body.scrollHeight - ANDROID_NUDGE.NEAR_BOTTOM_PX;
+
+        if (nearBottom) {
+          lastNudgeAt = now;
+          nudgeViewport();
+        }
+      },
+      { passive: true },
+    );
+  }
 
   function withTimeout(promise, ms) {
     return new Promise((resolve, reject) => {
@@ -237,6 +300,9 @@
 
     // /search /groupsでUI表示（bodyが必要）
     onBodyReady(ensureLicenseUI);
+
+    // Android検索ページの無限スクロール補助（bodyが必要）
+    onBodyReady(setupAndroidInfiniteScrollNudge);
 
     // promptには頼らない：保存済みがあればPro、なければTrial
     const token = getStoredToken() || "";
